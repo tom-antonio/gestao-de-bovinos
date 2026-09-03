@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BovinoCriar(BaseModel):
@@ -7,6 +8,7 @@ class BovinoCriar(BaseModel):
     nome_mae: str = Field(min_length=2)
 
 class BovinoPublico(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: int
     nome: str
     raca: str
