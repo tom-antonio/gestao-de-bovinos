@@ -1,4 +1,8 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from . import service
 from .schemas import BovinoCriar, BovinoPublico, BovinoAtualizar
 
 router = APIRouter(prefix="/bovinos", tags=["Bovinos"])
@@ -8,38 +12,24 @@ bovinos: list[dict] = []
 
 
 @router.get("/", response_model=list[BovinoPublico])
-def listar():
-    return bovinos
-
-@router.get("/bovino")
-def listar_bovinos():
-    return [{"id": 1, "nome": "Coruja", "raca": "Girolando", "nome_mae": "Pretinha"}]
+def listar(db: Session = Depends(get_db)):
+    return service.listar(db)
 
 @router.post("/", response_model=BovinoPublico, status_code=201)
-def criar(dados: BovinoCriar):
-    novo = {"id": len(bovinos) + 1, **dados.model_dump()}
-    bovinos.append(novo)
-    return novo
+def criar(dados: BovinoCriar, db: Session = Depends(get_db)):
+    return service.criar(db, dados.model_dump())
 
-@router.get("/{id}", response_model=BovinoPublico)
-def buscar(id: int):
-    for b in bovinos:
-        if b["id"] == id:
-            return b
-    raise HTTPException(status_code=404, detail="Bovino nao encontrado")
+@router.get("/{bovino_id}", response_model=BovinoPublico)
+def buscar(bovino_id: int, db: Session = Depends(get_db)):
+    return service.buscar(db, bovino_id)
+
 
 @router.patch("/{bovino_id}", response_model=BovinoPublico)
-def atualizar(bovino_id: int, dados: BovinoAtualizar):
-    for p in bovinos:
-        if p["id"] == bovino_id:
-            p.update(dados.model_dump(exclude_unset=True))
-            return p
-    raise HTTPException(status_code=404, detail="Bovino nao encontrado")
+def atualizar(bovino_id: int, dados: BovinoAtualizar, db: Session = Depends(get_db)):
+    return service.atualizar(
+        db, bovino_id, dados.model_dump(exclude_unset=True)
+        )
 
 @router.delete("/{bovino_id}", status_code=204)
-def apagar(bovino_id: int):
-    for p in bovinos:
-        if p["id"] == bovino_id:
-            bovinos.remove(p)
-            return
-    raise HTTPException(status_code=404, detail="Bovino nao encontrado")
+def apagar(bovino_id: int, db: Session = Depends(get_db)):
+    return service.excluir(db, bovino_id)

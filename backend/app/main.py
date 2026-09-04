@@ -1,11 +1,21 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
+from .database import Base, engine
 from .bovino import controller as bovino_controller
+from .bovino.erros import ErroDeBovino, ErroDeVacaNaoEncontrada
+
+Base.metadata.create_all(bind=engine)
 
 # A instancia da aplicacao. O titulo aparece na pagina /docs.
 app = FastAPI(title="API do Meu Projeto", version="0.1.0")
 app.include_router(bovino_controller.router)
 
+@app.exception_handler(ErroDeBovino)
+def erro_de_bovino_handler(request: Request, erro: ErroDeBovino):
+    """O unico lugar do sistema que transforma recusa em numero HTTP."""
+    codigo = 404 if isinstance(erro, ErroDeVacaNaoEncontrada) else 409
+    return JSONResponse(status_code=codigo, content={"detail": str(erro)})
 
 # O decorador diz: "esta funcao atende GET na raiz".
 @app.get("/")
