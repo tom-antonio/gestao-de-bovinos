@@ -6,6 +6,7 @@ class BovinoCriar(BaseModel):
     nome: str = Field(min_length=2)
     raca: str = Field(min_length=2)
     nome_mae: str = Field(min_length=2)
+    status: bool = Field(default=True)
 
 class BovinoPublico(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -13,8 +14,10 @@ class BovinoPublico(BaseModel):
     nome: str
     raca: str
     nome_mae: str
+    status: bool
 
 class BovinoAtualizar(BaseModel):
     nome: str | None = None
     raca: str | None = None
     nome_mae: str | None = None
+    status: bool | None = None

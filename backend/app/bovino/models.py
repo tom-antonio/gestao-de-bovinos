@@ -15,3 +15,4 @@ class Bovino(Base):
     nome = Column(String(120), nullable=False)
     raca = Column(String(120), nullable=False)
     nome_mae = Column(String(120), nullable=False)
+    status = Column(Boolean, default=True, nullable=False)
