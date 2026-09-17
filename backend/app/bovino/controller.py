@@ -2,10 +2,14 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..seguranca import get_current_user
 from . import service
 from .schemas import BovinoCriar, BovinoPublico, BovinoAtualizar
 
-router = APIRouter(prefix="/bovinos", tags=["Bovinos"])
+router = APIRouter(
+    prefix="/bovinos", 
+    tags=["Bovinos"], 
+    dependencies=[Depends(get_current_user)])
 
 # Banco de mentira: uma lista em memoria. Vira banco de verdade no encontro 4.
 bovinos: list[dict] = []
