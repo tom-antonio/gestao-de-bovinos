@@ -5,15 +5,14 @@ no próprio quantitativo de bovinos cadastrados, a listagem tem **busca e filtro
 que está errado em português. A coluna nova entrou por uma **migração** —
 o `create_all` não existe mais.
 
-## Rodar
+## Como rodar o app
+Suba a API antes (ela precisa estar na porta 8000).
 ```
-poetry install
+cd frontend
+flutter pub get
+flutter run -d chrome
 ```
-Renomeie `env.exemplo` para `.env` (URL do banco e `SECRET_KEY`).
-```
-poetry run alembic upgrade head
-poetry run uvicorn app.main:app --reload
-```
+
 O `upgrade head` aplica as **duas** migrações: a que cria `bovinos` e
 `usuarios`, e a que acrescenta `bovinos.dono_id`. Depois abra
 <http://127.0.0.1:8000/docs>.
