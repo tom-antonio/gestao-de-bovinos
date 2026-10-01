@@ -1,8 +1,7 @@
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
 from ..database import Base
-
-
 
 class Bovino(Base):
     """A TABELA. Nao confunda com os schemas: aquilo atravessa a
@@ -16,3 +15,6 @@ class Bovino(Base):
     raca = Column(String(120), nullable=False)
     nome_mae = Column(String(120), nullable=False)
     status = Column(Boolean, default=True, nullable=False)
+
+    dono_id = Column(Integer, ForeignKey("usuarios.id", name="fk_bovinos_dono"), nullable=True)
+    dono = relationship("Usuario", back_populates="bovinos")

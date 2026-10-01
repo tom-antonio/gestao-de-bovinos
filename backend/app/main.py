@@ -1,20 +1,33 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-from .database import Base, engine
 from .bovino import controller as bovino_controller
 from .bovino.erros import ErroDeBovino, ErroDeVacaNaoEncontrada
-
-Base.metadata.create_all(bind=engine)
+from .usuarios import controller as usuarios_controller
+from .usuarios.erros import CredenciaisInvalidas, ErroDeUsuario
 
 # A instancia da aplicacao. O titulo aparece na pagina /docs.
 app = FastAPI(title="API do Meu Projeto", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(usuarios_controller.router)
 app.include_router(bovino_controller.router)
 
 @app.exception_handler(ErroDeBovino)
 def erro_de_bovino_handler(request: Request, erro: ErroDeBovino):
     """O unico lugar do sistema que transforma recusa em numero HTTP."""
     codigo = 404 if isinstance(erro, ErroDeVacaNaoEncontrada) else 409
+    return JSONResponse(status_code=codigo, content={"detail": str(erro)})
+
+@app.exception_handler(ErroDeUsuario)
+def erro_de_usuario_handler(request: Request, erro: ErroDeUsuario):
+    codigo = 401 if isinstance(erro, CredenciaisInvalidas) else 409
     return JSONResponse(status_code=codigo, content={"detail": str(erro)})
 
 # O decorador diz: "esta funcao atende GET na raiz".
