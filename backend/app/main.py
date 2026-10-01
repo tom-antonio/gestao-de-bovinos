@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from .bovino import controller as bovino_controller
 from .bovino.erros import ErroDeBovino, ErroDeVacaNaoEncontrada
@@ -8,6 +9,13 @@ from .usuarios.erros import CredenciaisInvalidas, ErroDeUsuario
 
 # A instancia da aplicacao. O titulo aparece na pagina /docs.
 app = FastAPI(title="API do Meu Projeto", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(usuarios_controller.router)
 app.include_router(bovino_controller.router)
 
