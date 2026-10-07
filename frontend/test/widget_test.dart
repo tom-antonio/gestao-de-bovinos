@@ -6,6 +6,7 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 import 'package:frontend/main.dart';
 import 'package:frontend/repositories/usuario_repository.dart';
@@ -14,7 +15,12 @@ import 'package:frontend/services/sessao_service.dart';
 void main() {
   testWidgets('exibe a tela de login', (WidgetTester tester) async {
     final sessao = SessaoService(UsuarioRepository());
-    await tester.pumpWidget(BovinosApp(sessao: sessao));
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: sessao,
+        child: const BovinosApp(),
+      ),
+    );
 
     expect(find.text('Entrar'), findsNWidgets(2));
     expect(find.text('E-mail'), findsOneWidget);
