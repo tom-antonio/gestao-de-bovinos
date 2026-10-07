@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'repositories/usuario_repository.dart';
+import 'routes.dart';
+import 'screens/inicio_screen.dart';
+import 'screens/cadastro_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/sessao_service.dart';
 
@@ -22,7 +25,12 @@ class BovinosApp extends StatelessWidget {
       title: 'Bovinos App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.indigo),
-      home: LoginScreen(sessao: sessao),
+      initialRoute: AppRoutes.login,
+      routes: {
+        AppRoutes.login: (context) => LoginScreen(sessao: sessao),
+        AppRoutes.cadastro: (context) => const CadastroScreen(),
+        AppRoutes.inicio: (context) => InicioScreen(sessao: sessao),
+      },
     );
   }
 }

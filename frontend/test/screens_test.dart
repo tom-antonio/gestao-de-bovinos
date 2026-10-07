@@ -30,7 +30,7 @@ SessaoService sessaoDeMentira() {
     if (pedido.url.path == '/usuarios/eu' &&
         pedido.headers['Authorization'] == 'Bearer token-da-ana') {
       return http.Response(
-        jsonEncode({'id': 1, 'nome': 'Ana', 'email': 'ana@biblioteca.com'}),
+        jsonEncode({'id': 1, 'nome': 'Ana', 'email': 'ana@bovino.com'}),
         200,
       );
     }
@@ -40,7 +40,7 @@ SessaoService sessaoDeMentira() {
 }
 
 Future<void> preencherEEntrar(WidgetTester tester, String senha) async {
-  await tester.enterText(find.byType(TextField).at(0), 'ana@biblioteca.com');
+  await tester.enterText(find.byType(TextField).at(0), 'ana@bovino.com');
   await tester.enterText(find.byType(TextField).at(1), senha);
   await tester.tap(find.widgetWithText(ElevatedButton, 'Entrar'));
   await tester.pumpAndSettle();
