@@ -44,5 +44,7 @@ class SessaoService extends ChangeNotifier {
 
   void sair() {
     token = null;
+    usuario = null;
+    notifyListeners();
   }
 }
