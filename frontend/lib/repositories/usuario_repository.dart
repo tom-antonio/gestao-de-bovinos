@@ -10,7 +10,8 @@ const enderecoDaApi = 'http://127.0.0.1:8000';
 // A camada de dados: o único lugar do app que sabe endereço, HTTP e JSON.
 // No backend, o repository fala com o banco; aqui, ele fala com a API.
 class UsuarioRepository {
-  UsuarioRepository({http.Client? cliente}) : cliente = cliente ?? http.Client();
+  UsuarioRepository({http.Client? cliente})
+    : cliente = cliente ?? http.Client();
 
   final http.Client cliente;
 
@@ -26,6 +27,18 @@ class UsuarioRepository {
     }
     final corpo = jsonDecode(resposta.body);
     return corpo['access_token'];
+  }
+
+  Future<Usuario?> cadastrar(String nome, String email, String senha) async {
+    final resposta = await cliente.post(
+      Uri.parse('$enderecoDaApi/usuarios/'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'nome': nome, 'email': email, 'senha': senha}),
+    );
+    if (resposta.statusCode != 201) {
+      return null;
+    }
+    return Usuario.fromJson(jsonDecode(resposta.body));
   }
 
   // Pergunta quem é o dono do token. O token vai no cabeçalho do pedido.

@@ -64,7 +64,9 @@ Future<void> abrirOMenu(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('a tela de login tem e-mail, senha e o botão Entrar', (tester) async {
+  testWidgets('a tela de login tem e-mail, senha e o botão Entrar', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     expect(find.byType(TextField), findsNWidgets(2));
@@ -79,7 +81,9 @@ void main() {
     expect(find.widgetWithText(ElevatedButton, 'Cadastrar'), findsOneWidget);
   });
 
-  testWidgets('com a senha certa, a rota /inicio abre a tela inicial', (tester) async {
+  testWidgets('com a senha certa, a rota /inicio abre a tela inicial', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     await preencherEEntrar(tester, 'segredo123');
@@ -89,7 +93,9 @@ void main() {
     expect(find.byType(LoginScreen), findsNothing);
   });
 
-  testWidgets('com a senha errada, fica no login e mostra o erro', (tester) async {
+  testWidgets('com a senha errada, fica no login e mostra o erro', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     await preencherEEntrar(tester, 'senha-errada');
@@ -98,7 +104,9 @@ void main() {
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 
-  testWidgets('o link Criar uma conta abre o cadastro pelo nome da rota', (tester) async {
+  testWidgets('o link Criar uma conta abre o cadastro pelo nome da rota', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     await tester.tap(find.text('Criar uma conta'));
@@ -107,34 +115,62 @@ void main() {
     expect(find.byType(CadastroScreen), findsOneWidget);
   });
 
-  testWidgets('o guarda: sem sessão, a rota /inicio mostra o login', (tester) async {
+  testWidgets('o botão Já tenho conta volta para o login', (tester) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
-    Navigator.of(tester.element(find.byType(LoginScreen))).pushNamed(AppRoutes.inicio);
+    await tester.tap(find.text('Criar uma conta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Já tenho conta'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(CadastroScreen), findsNothing);
+  });
+
+  testWidgets('o guarda: sem sessão, a rota /inicio mostra o login', (
+    tester,
+  ) async {
+    await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
+
+    Navigator.of(tester.element(find.byType(LoginScreen)))
+        .pushNamed(AppRoutes.inicio);
     await tester.pumpAndSettle();
 
     expect(find.byType(InicioScreen), findsNothing);
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 
-  testWidgets('o menu mostra o nome sem receber nada pelo construtor', (tester) async {
+  testWidgets('o menu mostra o nome sem receber nada pelo construtor', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
     await preencherEEntrar(tester, 'segredo123');
 
     await abrirOMenu(tester);
     final menu = find.byType(Drawer);
-    expect(find.descendant(of: menu, matching: find.text('Ana')), findsOneWidget);
-    expect(find.descendant(of: menu, matching: find.text('ana@bovino.com')), findsOneWidget);
+    expect(
+      find.descendant(of: menu, matching: find.text('Ana')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: menu, matching: find.text('ana@bovino.com')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.descendant(of: menu, matching: find.text('Perfil')));
     await tester.pumpAndSettle();
 
     expect(find.byType(PerfilScreen), findsOneWidget);
     await abrirOMenu(tester);
-    expect(find.descendant(of: find.byType(Drawer), matching: find.text('Ana')), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(Drawer), matching: find.text('Ana')),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('sair volta ao login, limpa a pilha e apaga a sessão', (tester) async {
+  testWidgets('sair volta ao login, limpa a pilha e apaga a sessão', (
+    tester,
+  ) async {
     final sessao = sessaoDeMentira();
     await tester.pumpWidget(appDeMentira(sessao));
     await preencherEEntrar(tester, 'segredo123');
@@ -148,11 +184,16 @@ void main() {
 
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(BovinosScreen), findsNothing);
-    expect(Navigator.of(tester.element(find.byType(LoginScreen))).canPop(), isFalse);
+    expect(
+      Navigator.of(tester.element(find.byType(LoginScreen))).canPop(),
+      isFalse,
+    );
     expect(sessao.logado, isFalse);
   });
 
-  testWidgets('o watch redesenha a tela quando o service avisa', (tester) async {
+  testWidgets('o watch redesenha a tela quando o service avisa', (
+    tester,
+  ) async {
     final sessao = sessaoDeMentira();
     await tester.pumpWidget(
       ChangeNotifierProvider.value(

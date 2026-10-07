@@ -23,17 +23,23 @@ class AppDrawer extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('Início'),
-            onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.inicio),
+            onTap: () =>
+                Navigator.pushReplacementNamed(context, AppRoutes.inicio),
           ),
           ListTile(
-            leading: const Icon(Icons.menu_book),
+            leading: const Text(
+              '🐄︎',
+              style: TextStyle(fontSize: 24, color: Colors.black),
+            ),
             title: const Text('Bovinos'),
-            onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.bovino),
+            onTap: () =>
+                Navigator.pushReplacementNamed(context, AppRoutes.bovino),
           ),
           ListTile(
             leading: const Icon(Icons.person),
             title: const Text('Perfil'),
-            onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.perfil),
+            onTap: () =>
+                Navigator.pushReplacementNamed(context, AppRoutes.perfil),
           ),
           const Divider(),
           ListTile(
