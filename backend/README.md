@@ -16,3 +16,7 @@ flutter run -d chrome
 O `upgrade head` aplica as **duas** migrações: a que cria `bovinos` e
 `usuarios`, e a que acrescenta `bovinos.dono_id`. Depois abra
 <http://127.0.0.1:8000/docs>.
+
+As telas têm nome (`lib/routes.dart`) e o `main.dart` liga cada nome à tela. As telas de dentro do app passam pelo `RotaProtegida`: sem sessão, mostram o login.
+
+A sessão (`SessaoService`) fica no topo do app, num `ChangeNotifierProvider`, e as telas a leem com `context.read` e `context.watch`: nenhuma recebe a sessão pelo construtor. O token vive só na memória: recarregar a página (F5) sai do app.
