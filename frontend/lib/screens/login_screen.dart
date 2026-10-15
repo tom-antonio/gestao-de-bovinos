@@ -55,7 +55,11 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.local_library, size: 72),
+                const Text(
+                  '🐄',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 72),
+                ),
                 const SizedBox(height: 8),
                 const Text(
                   'Entrar',

@@ -1,17 +1,44 @@
-# frontend
+# Frontend
 
-A new Flutter project.
+O frontend Flutter depende da API FastAPI. O `flutter run` não inicia o
+backend automaticamente: mantenha o Uvicorn rodando em outro terminal.
 
-## Getting Started
+## Executar localmente
 
-This project is a starting point for a Flutter application.
+No primeiro uso, prepare o backend:
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+cd ../backend
+poetry install
+poetry run alembic upgrade head
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+No terminal 1, inicie a API e deixe esse terminal aberto:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+cd ../backend
+poetry run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Confirme que ela está disponível em <http://127.0.0.1:8000/docs>.
+
+No terminal 2, compile e execute o frontend:
+
+```bash
+cd frontend
+flutter pub get
+flutter run -d web-server --web-port 8080 \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8000
+```
+
+Abra o endereço informado pelo Flutter, normalmente
+<http://localhost:8080>. Se o terminal do Uvicorn for encerrado, o login e o
+cadastro deixarão de funcionar.
+
+O endereço padrão da API também é `http://127.0.0.1:8000`; o
+`--dart-define` permite apontar o frontend para outro endereço sem alterar o
+código.
+
+O cadastro chama `POST /usuarios/` pelas mesmas camadas do login e já entra com a conta nova. Quando a API recusa (e-mail repetido, campo inválido), a frase aparece na tela.
+
+O token fica no aparelho (`shared_preferences`, que no navegador é o `localStorage`), num repositório próprio, o `TokenRepository`. O `main` o restaura antes de abrir o app: se a API ainda o aceita, o F5 não derruba a sessão. O Sair apaga o token.
