@@ -23,30 +23,25 @@ class AppDrawer extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.home),
             title: const Text('Início'),
-            onTap: () =>
-                Navigator.pushReplacementNamed(context, AppRoutes.inicio),
+            onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.inicio),
           ),
           ListTile(
-            leading: const Text(
-              '🐄︎',
-              style: TextStyle(fontSize: 24, color: Colors.black),
-            ),
+            leading: const Icon(Icons.menu_book),
             title: const Text('Bovinos'),
-            onTap: () =>
-                Navigator.pushReplacementNamed(context, AppRoutes.bovino),
+            onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.bovino),
           ),
           ListTile(
             leading: const Icon(Icons.person),
             title: const Text('Perfil'),
-            onTap: () =>
-                Navigator.pushReplacementNamed(context, AppRoutes.perfil),
+            onTap: () => Navigator.pushReplacementNamed(context, AppRoutes.perfil),
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Sair'),
-            onTap: () {
-              context.read<SessaoService>().sair();
+            onTap: () async {
+              await context.read<SessaoService>().sair();
+              if (!context.mounted) return;
               Navigator.pushNamedAndRemoveUntil(
                 context,
                 AppRoutes.login,

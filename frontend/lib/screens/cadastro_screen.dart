@@ -57,7 +57,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('BovinoApp')),
+      appBar: AppBar(title: const Text('BovinosApp')),
       body: Center(
         child: SingleChildScrollView(
           child: Container(
