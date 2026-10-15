@@ -38,3 +38,7 @@ cadastro deixarão de funcionar.
 O endereço padrão da API também é `http://127.0.0.1:8000`; o
 `--dart-define` permite apontar o frontend para outro endereço sem alterar o
 código.
+
+O cadastro chama `POST /usuarios/` pelas mesmas camadas do login e já entra com a conta nova. Quando a API recusa (e-mail repetido, campo inválido), a frase aparece na tela.
+
+O token fica no aparelho (`shared_preferences`, que no navegador é o `localStorage`), num repositório próprio, o `TokenRepository`. O `main` o restaura antes de abrir o app: se a API ainda o aceita, o F5 não derruba a sessão. O Sair apaga o token.

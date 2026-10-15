@@ -28,7 +28,7 @@ int pedidos = 0;
 SessaoService sessaoDeMentira({Map<String, Object> guardado = const {}}) {
   SharedPreferences.setMockInitialValues(guardado);
   final contas = {
-    'ana@biblioteca.com': {'nome': 'Ana', 'senha': 'segredo123'},
+    'ana@bovino.com': {'nome': 'Ana', 'senha': 'segredo123'},
   };
   final cliente = MockClient((pedido) async {
     pedidos++;
