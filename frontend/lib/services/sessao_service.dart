@@ -10,12 +10,26 @@ class ErroDeLogin implements Exception {
   final String mensagem;
 }
 
+// A recusa do cadastro: a mesma ideia, com a frase que a tela mostra.
+class ErroDeCadastro implements Exception {
+  ErroDeCadastro(this.mensagem);
+
+  final String mensagem;
+}
+
+// A camada de negócio do app: as regras do login e do cadastro e quem está
+// logado. Não sabe de tela e não faz HTTP nem JSON: quem faz é o repositório.
+// É um ChangeNotifier: quando a sessão muda, ele avisa (notifyListeners) quem
+// estiver de olho.
 class SessaoService extends ChangeNotifier {
   SessaoService(this.repositorio);
+
   final UsuarioRepository repositorio;
   String? token;
   Usuario? usuario;
+
   bool get logado => token != null;
+
   Future<void> entrar(String email, String senha) async {
     if (email.isEmpty || senha.isEmpty) {
       throw ErroDeLogin('Preencha o e-mail e a senha');
@@ -38,8 +52,24 @@ class SessaoService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<Usuario> usuarioLogado() {
-    return repositorio.quemSouEu(token!);
+  // Cria a conta e já entra com ela, pelo mesmo caminho do login.
+  Future<void> cadastrar(String nome, String email, String senha) async {
+    if (nome.isEmpty || email.isEmpty || senha.isEmpty) {
+      throw ErroDeCadastro('Preencha o nome, o e-mail e a senha');
+    }
+    try {
+      await repositorio.cadastrar(nome, email, senha);
+      await entrar(email, senha);
+    } on RecusaDaApi catch (e) {
+      if (e.status == 409) {
+        throw ErroDeCadastro('Já existe uma conta com este e-mail');
+      }
+      throw ErroDeCadastro(e.mensagem);
+    } on ErroDeLogin {
+      throw ErroDeCadastro('Conta criada, mas não consegui entrar. Tente pelo login.');
+    } catch (e) {
+      throw ErroDeCadastro('Não consegui falar com a API. O uvicorn está rodando?');
+    }
   }
 
   void sair() {

@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../routes.dart';
 import '../services/sessao_service.dart';
 
+// A tela de cadastro, pelo mesmo caminho da de login: recebe o clique, pede
+// ao service e mostra a resposta. O erro que a API mandou aparece em vermelho.
 class CadastroScreen extends StatefulWidget {
   const CadastroScreen({super.key});
 
@@ -19,50 +21,29 @@ class _CadastroScreenState extends State<CadastroScreen> {
   String? erro;
 
   Future<void> cadastrar() async {
-    if (nome.text.trim().isEmpty ||
-        email.text.trim().isEmpty ||
-        senha.text.isEmpty) {
-      setState(() => erro = 'Preencha todos os campos');
-      return;
-    }
-    if (senha.text.length < 6) {
-      setState(() => erro = 'A senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-
     setState(() {
       carregando = true;
       erro = null;
     });
     try {
-      final usuario = await context.read<SessaoService>().repositorio.cadastrar(
-        nome.text.trim(),
-        email.text.trim(),
+      await context.read<SessaoService>().cadastrar(
+        nome.text,
+        email.text,
         senha.text,
       );
-      if (!mounted) return;
-      if (usuario == null) {
-        setState(() {
-          carregando = false;
-          erro = 'Não foi possível criar a conta';
-        });
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Conta criada com sucesso')));
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.login,
-        (route) => false,
-      );
-    } catch (_) {
-      if (!mounted) return;
+    } on ErroDeCadastro catch (e) {
       setState(() {
         carregando = false;
-        erro = 'Não consegui falar com a API. O uvicorn está rodando?';
+        erro = e.mensagem;
       });
+      return;
     }
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.inicio,
+      (rota) => false,
+    );
   }
 
   @override
@@ -76,7 +57,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bovinos App')),
+      appBar: AppBar(title: const Text('BovinoApp')),
       body: Center(
         child: SingleChildScrollView(
           child: Container(
@@ -93,7 +74,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
                 const SizedBox(height: 24),
                 TextField(
                   controller: nome,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Nome',
                     border: OutlineInputBorder(),
                   ),
@@ -101,7 +82,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: email,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'E-mail',
                     border: OutlineInputBorder(),
                   ),
@@ -110,33 +91,35 @@ class _CadastroScreenState extends State<CadastroScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: senha,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Senha',
                     helperText: 'Pelo menos 6 caracteres',
                     border: OutlineInputBorder(),
                   ),
                   obscureText: true,
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: carregando ? null : cadastrar,
-                  child: Text(carregando ? 'Cadastrando...' : 'Cadastrar'),
-                ),
                 if (erro != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Text(
                     erro!,
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.red),
                   ),
                 ],
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: carregando ? null : cadastrar,
+                  child: Text(carregando ? 'Cadastrando...' : 'Cadastrar'),
+                ),
                 const SizedBox(height: 8),
                 TextButton(
-                  onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    AppRoutes.login,
-                    (route) => false,
-                  ),
+                  onPressed: () {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      AppRoutes.login,
+                      (rota) => false,
+                    );
+                  },
                   child: const Text('Já tenho conta'),
                 ),
               ],
