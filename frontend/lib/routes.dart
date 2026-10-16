@@ -4,4 +4,5 @@ class AppRoutes {
   static const inicio = '/inicio';
   static const bovino = '/bovino';
   static const perfil = '/perfil';
+  static const bovinos = '/bovinos';
 }
