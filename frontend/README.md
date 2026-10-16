@@ -42,3 +42,7 @@ código.
 O cadastro chama `POST /usuarios/` pelas mesmas camadas do login e já entra com a conta nova. Quando a API recusa (e-mail repetido, campo inválido), a frase aparece na tela.
 
 O token fica no aparelho (`shared_preferences`, que no navegador é o `localStorage`), num repositório próprio, o `TokenRepository`. O `main` o restaura antes de abrir o app: se a API ainda o aceita, o F5 não derruba a sessão. O Sair apaga o token.
+
+A tela de livros chama `GET /livros/` pelas camadas do app (tela, `LivroService`, `LivroRepository`), com o token no cabeçalho, e mostra só os livros de quem está logado. Ela tem quatro estados: carregando, erro (com Tentar de novo), lista vazia e a lista.
+
+Tocar num livro abre o detalhe pela rota `/livro`, com o id nos `arguments`: o detalhe busca o livro na API (`GET /livros/{id}`), para mostrar o dado de agora.
