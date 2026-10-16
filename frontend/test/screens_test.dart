@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -8,13 +9,17 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend/main.dart';
+import 'package:frontend/models/bovino.dart';
+import 'package:frontend/repositories/bovino_repository.dart';
 import 'package:frontend/repositories/usuario_repository.dart';
 import 'package:frontend/routes.dart';
 import 'package:frontend/screens/cadastro_screen.dart';
 import 'package:frontend/screens/inicio_screen.dart';
+import 'package:frontend/screens/bovino_screen.dart';
 import 'package:frontend/screens/bovinos_screen.dart';
 import 'package:frontend/screens/login_screen.dart';
 import 'package:frontend/screens/perfil_screen.dart';
+import 'package:frontend/services/bovino_service.dart';
 import 'package:frontend/services/sessao_service.dart';
 
 // Uma API de mentira, com um banco de mentira (o Map contas): responde como a
@@ -86,10 +91,60 @@ SessaoService sessaoDeMentira({Map<String, Object> guardado = const {}}) {
   return SessaoService(UsuarioRepository(cliente: cliente));
 }
 
-// O app de verdade, com a sessão de mentira no topo, como o main.dart faz.
+// Dois bovinos da Ana, na forma do Bovino que a API devolve.
+const doisBovinos = [
+  {
+    'id': 1,
+    'nome': 'Coruja',
+    'raca': 'Holandesa',
+    'nome_mae': 'Roxinha',
+    'status': true,
+    'dono_id': 1,
+  },
+  {
+    'id': 2,
+    'nome': 'Brisa',
+    'raca': 'Jersey',
+    'nome_mae': 'Branca de Neve',
+    'status': false,
+    'dono_id': 1,
+  },
+];
+
+// A API de bovinos de mentira: o GET /bovinos/ responde com este status e este
+// corpo. Como a de verdade, sem o token no cabeçalho ela responde 401. O
+// GET /bovinos/{id} procura o bovino nos dois da Ana; outro id, 404.
+http.Client apiDeBovinos(int status, Object corpo) {
+  return MockClient((pedido) async {
+    pedidos++;
+    if (pedido.headers['Authorization'] == null) {
+      return http.Response('{"detail": "Not authenticated"}', 401);
+    }
+    final id = pedido.url.pathSegments.last; // '' em /bovinos/, '2' em /bovinos/2
+    if (id.isNotEmpty) {
+      for (final bovino in doisBovinos) {
+        if ('${bovino['id']}' == id) {
+          return http.Response(jsonEncode(bovino), 200);
+        }
+      }
+      return http.Response('{"detail": "Bovino $id nao esta no seu acervo"}', 404);
+    }
+    return http.Response(jsonEncode(corpo), status);
+  });
+}
+
+// O app de verdade, com os services de mentira no topo, como o main.dart faz.
 // O .value entrega ao Provider um objeto que já existe, em vez de criá-lo.
-Widget appDeMentira(SessaoService sessao) {
-  return ChangeNotifierProvider.value(value: sessao, child: const BovinosApp());
+// Sem a API de bovinos, a de mentira responde uma lista vazia.
+Widget appDeMentira(SessaoService sessao, {http.Client? livros}) {
+  final repositorio = BovinoRepository(cliente: livros ?? apiDeBovinos(200, []));
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider.value(value: sessao),
+      Provider.value(value: BovinoService(repositorio, sessao)),
+    ],
+    child: const BovinosApp(),
+  );
 }
 
 Future<void> preencherEEntrar(WidgetTester tester, String senha) async {
@@ -112,6 +167,15 @@ Future<void> preencherECadastrar(WidgetTester tester, String email, String senha
   await tester.enterText(find.byType(TextField).at(1), email);
   await tester.enterText(find.byType(TextField).at(2), senha);
   await tester.tap(find.widgetWithText(ElevatedButton, 'Cadastrar'));
+  await tester.pumpAndSettle();
+}
+
+// A Ana já entrou (a sessão restaurada, como o main faz) e toca em Ver os bovinos.
+Future<void> abrirOsBovinos(WidgetTester tester, http.Client livros) async {
+  final sessao = sessaoDeMentira(guardado: {'token': 'token-de-ana@bovino.com'});
+  await sessao.restaurar();
+  await tester.pumpWidget(appDeMentira(sessao, livros: livros));
+  await tester.tap(find.text('Ver os bovinos'));
   await tester.pumpAndSettle();
 }
 
@@ -173,7 +237,7 @@ void main() {
   testWidgets('cadastrar pela tela cria a conta e abre a tela inicial', (tester) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
-    await preencherECadastrar(tester, 'bia@bovino.com', 'segredo456');
+    await preencherECadastrar(tester, 'bia@biblioteca.com', 'segredo456');
 
     expect(find.byType(InicioScreen), findsOneWidget);
     expect(find.text('Olá, Bia!'), findsOneWidget);
@@ -283,6 +347,98 @@ void main() {
     expect(find.text('Ana'), findsOneWidget);
   });
 
+  // Os quatro estados da tela de bovinos: a lista, a vazia, o erro e o carregando.
+  testWidgets('a tela de bovinos mostra a lista: um ListTile por bovino', (tester) async {
+    await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
+
+    expect(find.byType(ListTile), findsNWidgets(2));
+    expect(find.text('Coruja'), findsOneWidget);
+    expect(find.text('Roxinha'), findsOneWidget);
+  });
+
+  testWidgets('sem bovino nenhum, a tela diz que a lista está vazia', (tester) async {
+    await abrirOsBovinos(tester, apiDeBovinos(200, []));
+
+    expect(find.text('Nenhum bovino ainda.'), findsOneWidget);
+    expect(find.byType(ListTile), findsNothing);
+  });
+
+  testWidgets('com a API parada, o erro; o Tentar de novo pede outra vez', (tester) async {
+    var noAr = false;
+    final livros = MockClient((pedido) async {
+      if (!noAr) {
+        throw http.ClientException('Failed to fetch');
+      }
+      return http.Response(jsonEncode(doisBovinos), 200);
+    });
+    await abrirOsBovinos(tester, livros);
+    expect(find.text('Não consegui carregar os bovinos'), findsOneWidget);
+    expect(find.text('Não consegui falar com a API. O uvicorn está rodando?'), findsOneWidget);
+
+    noAr = true;
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Tentar de novo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Coruja'), findsOneWidget);
+    expect(find.text('Tentar de novo'), findsNothing);
+  });
+
+  testWidgets('enquanto a resposta não chega, a tela mostra o carregando', (tester) async {
+    final resposta = Completer<http.Response>();
+    final sessao = sessaoDeMentira(guardado: {'token': 'token-de-ana@bovino.com'});
+    await sessao.restaurar();
+    await tester.pumpWidget(
+      appDeMentira(sessao, livros: MockClient((pedido) => resposta.future)),
+    );
+    await tester.tap(find.text('Ver os bovinos'));
+    // Sem pumpAndSettle: o círculo gira para sempre, e ele esperaria em vão.
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    resposta.complete(http.Response(jsonEncode(doisBovinos), 200));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Coruja'), findsOneWidget);
+  });
+
+  testWidgets('tocar num bovino abre o detalhe, que busca o bovino na API pelo id', (tester) async {
+    await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
+    pedidos = 0;
+
+    await tester.tap(find.text('Brisa'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BovinoScreen), findsOneWidget);
+    expect(find.text('Branca de Neve'), findsOneWidget);
+    expect(find.text('Inativo'), findsOneWidget);
+    expect(pedidos, 1);
+  });
+
+
+  testWidgets('o detalhe de um bovino que não existe mais mostra o erro da API', (tester) async {
+    await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
+
+    Navigator.of(tester.element(find.byType(BovinosScreen))).pushNamed(AppRoutes.bovino, arguments: 99);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Não consegui carregar o bovino'), findsOneWidget);
+    expect(find.text('Bovino 99 nao esta no seu acervo'), findsOneWidget);
+    expect(find.text('Tentar de novo'), findsOneWidget);
+  });
+
+  testWidgets('sem o bovino na rota (o F5 no detalhe), a tela mostra a lista', (tester) async {
+    await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
+
+    Navigator.of(tester.element(find.byType(BovinosScreen))).pushNamed(AppRoutes.bovino);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BovinosScreen), findsOneWidget);
+    expect(find.text('Brisa'), findsOneWidget);
+  });
+
   // O service testado sozinho, sem tela nenhuma: é o que as camadas compram.
   test('o service recusa campos vazios sem nem chamar a API', () async {
     final sessao = sessaoDeMentira();
@@ -313,11 +469,11 @@ void main() {
   test('cadastrar cria a conta e já entra com ela, pelo mesmo caminho do login', () async {
     final sessao = sessaoDeMentira();
 
-    await sessao.cadastrar('Bia', 'bia@bovino.com', 'segredo456');
+    await sessao.cadastrar('Bia', 'bia@biblioteca.com', 'segredo456');
 
     expect(sessao.logado, isTrue);
     expect(sessao.usuario?.nome, 'Bia');
-    expect(sessao.token, 'token-de-bia@bovino.com');
+    expect(sessao.token, 'token-de-bia@biblioteca.com');
   });
 
   test('o service traduz a recusa da API: e-mail repetido (409) e campo inválido (422)', () async {
@@ -328,7 +484,7 @@ void main() {
       recusadoCom('Já existe uma conta com este e-mail'),
     );
     await expectLater(
-      sessao.cadastrar('Bia', 'bia@bovino.com', '123'),
+      sessao.cadastrar('Bia', 'bia@biblioteca.com', '123'),
       recusadoCom('senha: String should have at least 6 characters'),
     );
     expect(sessao.logado, isFalse);
@@ -381,5 +537,49 @@ void main() {
     await sessao.sair();
 
     expect(await tokenGuardado(), isNull);
+  });
+
+  test('o repositório manda o token no cabeçalho e devolve objetos Bovino', () async {
+    String? cabecalho;
+    final cliente = MockClient((pedido) async {
+      cabecalho = pedido.headers['Authorization'];
+      return http.Response(jsonEncode(doisBovinos), 200);
+    });
+
+    final bovinos = await BovinoRepository(cliente: cliente).listar('tk-123');
+
+    expect(cabecalho, 'Bearer tk-123');
+    expect(bovinos, hasLength(2));
+    expect(bovinos.first, isA<Bovino>());
+    expect(bovinos.first.nome, 'Coruja');
+    expect(bovinos.last.status, isFalse);
+  });
+
+  test('o repositório busca um bovino só pelo id, com o token: GET /livros/2', () async {
+    String? caminho;
+    String? cabecalho;
+    final cliente = MockClient((pedido) async {
+      caminho = pedido.url.path;
+      cabecalho = pedido.headers['Authorization'];
+      return http.Response(jsonEncode(doisBovinos.last), 200);
+    });
+
+    final bovino = await BovinoRepository(cliente: cliente).buscar('tk-123', 2);
+
+    expect(caminho, '/bovinos/2');
+    expect(cabecalho, 'Bearer tk-123');
+    expect(bovino.nome, 'Brisa');
+  });
+
+  test('o service dos bovinos traduz a recusa: a frase da API vai para a tela', () async {
+    final sessao = sessaoDeMentira();
+    await sessao.entrar('ana@bovino.com', 'segredo123');
+    final recusa = apiDeBovinos(401, {'detail': 'Token invalido ou vencido'});
+    final servico = BovinoService(BovinoRepository(cliente: recusa), sessao);
+
+    await expectLater(
+      servico.listar(),
+      throwsA(isA<ErroDeBovinos>().having((e) => '$e', 'texto', 'Token invalido ou vencido')),
+    );
   });
 }
