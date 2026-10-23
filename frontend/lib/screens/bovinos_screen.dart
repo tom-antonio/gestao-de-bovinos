@@ -26,7 +26,7 @@ class _BovinosScreenState extends State<BovinosScreen> {
     bovinos = context.read<BovinoService>().listar();
   }
 
-  void tentarDeNovo() {
+  void pedirDeNovo() {
     setState(() {
       bovinos = context.read<BovinoService>().listar();
     });
@@ -60,7 +60,7 @@ class _BovinosScreenState extends State<BovinosScreen> {
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: tentarDeNovo,
+                    onPressed: pedirDeNovo,
                     child: const Text('Tentar de novo'),
                   ),
                 ],
@@ -83,13 +83,36 @@ class _BovinosScreenState extends State<BovinosScreen> {
                 title: Text(bovino.nome),
                 subtitle: Text(bovino.nomeMae),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.bovino, arguments: bovino.id);
+                onTap: () async {
+                  // Navega para a tela do bovino, passando o ID como argumento.
+                  final mudou = await Navigator.pushNamed(
+                    context,
+                    AppRoutes.bovino,
+                    arguments: bovino.id,
+                  );
+                  if (mudou == true) {
+                    pedirDeNovo();
+                  }
                 },
               );
             },
           );
         },
+      ),
+      // O + abre o formulário vazio. Ele fecha com true quando salvou: aí, a
+      // lista pede de novo, e o bovino novo aparece.
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Novo bovino',
+        onPressed: () async {
+          final salvou = await Navigator.pushNamed(
+            context,
+            AppRoutes.formulario,
+          );
+          if (salvou == true) {
+            pedirDeNovo();
+          }
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }
