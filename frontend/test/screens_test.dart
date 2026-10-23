@@ -17,6 +17,7 @@ import 'package:frontend/screens/cadastro_screen.dart';
 import 'package:frontend/screens/inicio_screen.dart';
 import 'package:frontend/screens/bovino_screen.dart';
 import 'package:frontend/screens/bovinos_screen.dart';
+import 'package:frontend/screens/formulario_screen.dart';
 import 'package:frontend/screens/login_screen.dart';
 import 'package:frontend/screens/perfil_screen.dart';
 import 'package:frontend/services/bovino_service.dart';
@@ -68,7 +69,10 @@ SessaoService sessaoDeMentira({Map<String, Object> guardado = const {}}) {
       final email = pedido.bodyFields['username'];
       if (contas[email]?['senha'] == pedido.bodyFields['password']) {
         return http.Response(
-          jsonEncode({'access_token': 'token-de-$email', 'token_type': 'bearer'}),
+          jsonEncode({
+            'access_token': 'token-de-$email',
+            'token_type': 'bearer',
+          }),
           200,
         );
       }
@@ -120,24 +124,100 @@ http.Client apiDeBovinos(int status, Object corpo) {
     if (pedido.headers['Authorization'] == null) {
       return http.Response('{"detail": "Not authenticated"}', 401);
     }
-    final id = pedido.url.pathSegments.last; // '' em /bovinos/, '2' em /bovinos/2
+    final id =
+        pedido.url.pathSegments.last; // '' em /bovinos/, '2' em /bovinos/2
     if (id.isNotEmpty) {
       for (final bovino in doisBovinos) {
         if ('${bovino['id']}' == id) {
           return http.Response(jsonEncode(bovino), 200);
         }
       }
-      return http.Response('{"detail": "Bovino $id nao esta no seu acervo"}', 404);
+      return http.Response(
+        '{"detail": "Bovino $id nao esta no seu acervo"}',
+        404,
+      );
     }
     return http.Response(jsonEncode(corpo), status);
+  });
+}
+
+// O acervo de mentira, para criar, editar e excluir: ele guarda o que recebe,
+// e responde como a API de verdade, com as recusas dela (o título repetido e
+// o bovino emprestado, 409). Começa com os dois bovinos da Ana.
+http.Client acervoDeMentira() {
+  final List<Map<String, dynamic>> acervo = [
+    {
+      'id': 1,
+      'nome': 'Coruja',
+      'raca': 'Holandesa',
+      'nome_mae': 'Roxinha',
+      'status': true,
+      'dono_id': 1,
+    },
+    {
+      'id': 2,
+      'nome': 'Brisa',
+      'raca': 'Jersey',
+      'nome_mae': 'Branca de Neve',
+      'status': false,
+      'dono_id': 1,
+    },
+  ];
+  return MockClient((pedido) async {
+    pedidos++;
+    final id = int.tryParse(pedido.url.pathSegments.last); // null em /bovinos/
+    if (pedido.method == 'POST' || pedido.method == 'PATCH') {
+      final dados = jsonDecode(pedido.body);
+      for (final bovino in acervo) {
+        if (bovino['nome'] == dados['nome'] && bovino['id'] != id) {
+          return http.Response(
+            '{"detail": "Ja existe um bovino chamado ${dados['nome']}"}',
+            409,
+          );
+        }
+      }
+      if (pedido.method == 'POST') {
+        final novo = {
+          'id': 3,
+          'nome': dados['nome'],
+          'raca': dados['raca'],
+          'nome_mae': dados['nome_mae'],
+          'status': dados['status'],
+          'dono_id': 1,
+        };
+        acervo.add(novo);
+        return http.Response(jsonEncode(novo), 201);
+      }
+    }
+    if (id == null) {
+      return http.Response(jsonEncode(acervo), 200);
+    }
+    for (final bovino in acervo) {
+      if (bovino['id'] == id) {
+        if (pedido.method == 'DELETE') {
+          if (bovino['status'] == false) {
+            return http.Response('{"detail": "Bovino $id esta inativo"}', 409);
+          }
+          acervo.remove(bovino);
+          return http.Response('', 204);
+        }
+        if (pedido.method == 'PATCH') {
+          bovino.addAll(jsonDecode(pedido.body));
+        }
+        return http.Response(jsonEncode(bovino), 200);
+      }
+    }
+    return http.Response('{"detail": "Bovino $id nao esta disponivel"}', 404);
   });
 }
 
 // O app de verdade, com os services de mentira no topo, como o main.dart faz.
 // O .value entrega ao Provider um objeto que já existe, em vez de criá-lo.
 // Sem a API de bovinos, a de mentira responde uma lista vazia.
-Widget appDeMentira(SessaoService sessao, {http.Client? livros}) {
-  final repositorio = BovinoRepository(cliente: livros ?? apiDeBovinos(200, []));
+Widget appDeMentira(SessaoService sessao, {http.Client? bovinos}) {
+  final repositorio = BovinoRepository(
+    cliente: bovinos ?? apiDeBovinos(200, []),
+  );
   return MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: sessao),
@@ -160,7 +240,11 @@ Future<void> abrirOMenu(WidgetTester tester) async {
 }
 
 // Abre o cadastro pelo link do login e preenche os três campos.
-Future<void> preencherECadastrar(WidgetTester tester, String email, String senha) async {
+Future<void> preencherECadastrar(
+  WidgetTester tester,
+  String email,
+  String senha,
+) async {
   await tester.tap(find.text('Criar uma conta'));
   await tester.pumpAndSettle();
   await tester.enterText(find.byType(TextField).at(0), 'Bia');
@@ -170,11 +254,40 @@ Future<void> preencherECadastrar(WidgetTester tester, String email, String senha
   await tester.pumpAndSettle();
 }
 
+// Na lista aberta, toca no + e preenche o formulário com o nome e a raça.
+Future<void> preencherOFormulario(
+  WidgetTester tester,
+  String nome,
+  String raca, [
+  String nomeMae = 'Branca de Neve',
+]) async {
+  await tester.tap(find.byTooltip('Novo bovino'));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byType(TextFormField).at(0), nome);
+  await tester.enterText(find.byType(TextFormField).at(1), raca);
+  await tester.enterText(find.byType(TextFormField).at(2), nomeMae);
+}
+
+// No detalhe aberto, toca em Excluir e responde ao diálogo com este botão.
+Future<void> excluirRespondendo(WidgetTester tester, String resposta) async {
+  await tester.tap(find.text('Excluir'));
+  await tester.pumpAndSettle();
+  await tester.tap(
+    find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.text(resposta),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 // A Ana já entrou (a sessão restaurada, como o main faz) e toca em Ver os bovinos.
-Future<void> abrirOsBovinos(WidgetTester tester, http.Client livros) async {
-  final sessao = sessaoDeMentira(guardado: {'token': 'token-de-ana@bovino.com'});
+Future<void> abrirOsBovinos(WidgetTester tester, http.Client bovinos) async {
+  final sessao = sessaoDeMentira(
+    guardado: {'token': 'token-de-ana@bovino.com'},
+  );
   await sessao.restaurar();
-  await tester.pumpWidget(appDeMentira(sessao, livros: livros));
+  await tester.pumpWidget(appDeMentira(sessao, bovinos: bovinos));
   await tester.tap(find.text('Ver os bovinos'));
   await tester.pumpAndSettle();
 }
@@ -187,11 +300,15 @@ Future<String?> tokenGuardado() async {
 
 // Confere que o cadastro foi recusado, com esta frase para a tela.
 Matcher recusadoCom(String frase) {
-  return throwsA(isA<ErroDeCadastro>().having((e) => e.mensagem, 'mensagem', frase));
+  return throwsA(
+    isA<ErroDeCadastro>().having((e) => e.mensagem, 'mensagem', frase),
+  );
 }
 
 void main() {
-  testWidgets('a tela de login tem e-mail, senha e o botão Entrar', (tester) async {
+  testWidgets('a tela de login tem e-mail, senha e o botão Entrar', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     expect(find.byType(TextField), findsNWidgets(2));
@@ -206,7 +323,9 @@ void main() {
     expect(find.widgetWithText(ElevatedButton, 'Cadastrar'), findsOneWidget);
   });
 
-  testWidgets('com a senha certa, a rota /inicio abre a tela inicial', (tester) async {
+  testWidgets('com a senha certa, a rota /inicio abre a tela inicial', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     await preencherEEntrar(tester, 'segredo123');
@@ -216,7 +335,9 @@ void main() {
     expect(find.byType(LoginScreen), findsNothing);
   });
 
-  testWidgets('com a senha errada, fica no login e mostra o erro', (tester) async {
+  testWidgets('com a senha errada, fica no login e mostra o erro', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     await preencherEEntrar(tester, 'senha-errada');
@@ -225,7 +346,9 @@ void main() {
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 
-  testWidgets('o link Criar uma conta abre o cadastro pelo nome da rota', (tester) async {
+  testWidgets('o link Criar uma conta abre o cadastro pelo nome da rota', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     await tester.tap(find.text('Criar uma conta'));
@@ -234,17 +357,21 @@ void main() {
     expect(find.byType(CadastroScreen), findsOneWidget);
   });
 
-  testWidgets('cadastrar pela tela cria a conta e abre a tela inicial', (tester) async {
+  testWidgets('cadastrar pela tela cria a conta e abre a tela inicial', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
-    await preencherECadastrar(tester, 'bia@biblioteca.com', 'segredo456');
+    await preencherECadastrar(tester, 'bia@bovino.com', 'segredo456');
 
     expect(find.byType(InicioScreen), findsOneWidget);
     expect(find.text('Olá, Bia!'), findsOneWidget);
     expect(find.byType(CadastroScreen), findsNothing);
   });
 
-  testWidgets('e-mail repetido: a tela mostra o erro e fica no cadastro', (tester) async {
+  testWidgets('e-mail repetido: a tela mostra o erro e fica no cadastro', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
     await preencherECadastrar(tester, 'ana@bovino.com', 'segredo456');
@@ -266,34 +393,50 @@ void main() {
     expect(find.byType(CadastroScreen), findsNothing);
   });
 
-  testWidgets('o guarda: sem sessão, a rota /inicio mostra o login', (tester) async {
+  testWidgets('o guarda: sem sessão, a rota /inicio mostra o login', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
 
-    Navigator.of(tester.element(find.byType(LoginScreen))).pushNamed(AppRoutes.inicio);
+    Navigator.of(tester.element(find.byType(LoginScreen)))
+        .pushNamed(AppRoutes.inicio);
     await tester.pumpAndSettle();
 
     expect(find.byType(InicioScreen), findsNothing);
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 
-  testWidgets('o menu mostra o nome sem receber nada pelo construtor', (tester) async {
+  testWidgets('o menu mostra o nome sem receber nada pelo construtor', (
+    tester,
+  ) async {
     await tester.pumpWidget(appDeMentira(sessaoDeMentira()));
     await preencherEEntrar(tester, 'segredo123');
 
     await abrirOMenu(tester);
     final menu = find.byType(Drawer);
-    expect(find.descendant(of: menu, matching: find.text('Ana')), findsOneWidget);
-    expect(find.descendant(of: menu, matching: find.text('ana@bovino.com')), findsOneWidget);
+    expect(
+      find.descendant(of: menu, matching: find.text('Ana')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: menu, matching: find.text('ana@bovino.com')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.descendant(of: menu, matching: find.text('Perfil')));
     await tester.pumpAndSettle();
 
     expect(find.byType(PerfilScreen), findsOneWidget);
     await abrirOMenu(tester);
-    expect(find.descendant(of: find.byType(Drawer), matching: find.text('Ana')), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(Drawer), matching: find.text('Ana')),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('sair volta ao login, limpa a pilha e apaga a sessão', (tester) async {
+  testWidgets('sair volta ao login, limpa a pilha e apaga a sessão', (
+    tester,
+  ) async {
     final sessao = sessaoDeMentira();
     await tester.pumpWidget(appDeMentira(sessao));
     await preencherEEntrar(tester, 'segredo123');
@@ -308,13 +451,20 @@ void main() {
 
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(BovinosScreen), findsNothing);
-    expect(Navigator.of(tester.element(find.byType(LoginScreen))).canPop(), isFalse);
+    expect(
+      Navigator.of(tester.element(find.byType(LoginScreen))).canPop(),
+      isFalse,
+    );
     expect(sessao.logado, isFalse);
     expect(await tokenGuardado(), isNull);
   });
 
-  testWidgets('com a sessão restaurada, o app abre direto na tela inicial', (tester) async {
-    final sessao = sessaoDeMentira(guardado: {'token': 'token-de-ana@bovino.com'});
+  testWidgets('com a sessão restaurada, o app abre direto na tela inicial', (
+    tester,
+  ) async {
+    final sessao = sessaoDeMentira(
+      guardado: {'token': 'token-de-ana@bovino.com'},
+    );
     await sessao.restaurar();
 
     await tester.pumpWidget(appDeMentira(sessao));
@@ -324,7 +474,9 @@ void main() {
     expect(find.byType(LoginScreen), findsNothing);
   });
 
-  testWidgets('o watch redesenha a tela quando o service avisa', (tester) async {
+  testWidgets('o watch redesenha a tela quando o service avisa', (
+    tester,
+  ) async {
     final sessao = sessaoDeMentira();
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -348,32 +500,43 @@ void main() {
   });
 
   // Os quatro estados da tela de bovinos: a lista, a vazia, o erro e o carregando.
-  testWidgets('a tela de bovinos mostra a lista: um ListTile por bovino', (tester) async {
+  testWidgets('a tela de bovinos mostra a lista: um ListTile por bovino', (
+    tester,
+  ) async {
     await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
 
     expect(find.byType(ListTile), findsNWidgets(2));
     expect(find.text('Coruja'), findsOneWidget);
+    expect(find.text('Brisa'), findsOneWidget);
     expect(find.text('Roxinha'), findsOneWidget);
+    expect(find.text('Branca de Neve'), findsOneWidget);
   });
 
-  testWidgets('sem bovino nenhum, a tela diz que a lista está vazia', (tester) async {
+  testWidgets('sem bovino nenhum, a tela diz que a lista está vazia', (
+    tester,
+  ) async {
     await abrirOsBovinos(tester, apiDeBovinos(200, []));
 
     expect(find.text('Nenhum bovino ainda.'), findsOneWidget);
     expect(find.byType(ListTile), findsNothing);
   });
 
-  testWidgets('com a API parada, o erro; o Tentar de novo pede outra vez', (tester) async {
+  testWidgets('com a API parada, o erro; o Tentar de novo pede outra vez', (
+    tester,
+  ) async {
     var noAr = false;
-    final livros = MockClient((pedido) async {
+    final bovinos = MockClient((pedido) async {
       if (!noAr) {
         throw http.ClientException('Failed to fetch');
       }
       return http.Response(jsonEncode(doisBovinos), 200);
     });
-    await abrirOsBovinos(tester, livros);
+    await abrirOsBovinos(tester, bovinos);
     expect(find.text('Não consegui carregar os bovinos'), findsOneWidget);
-    expect(find.text('Não consegui falar com a API. O uvicorn está rodando?'), findsOneWidget);
+    expect(
+      find.text('Não consegui falar com a API. O uvicorn está rodando?'),
+      findsOneWidget,
+    );
 
     noAr = true;
     await tester.tap(find.widgetWithText(ElevatedButton, 'Tentar de novo'));
@@ -383,12 +546,16 @@ void main() {
     expect(find.text('Tentar de novo'), findsNothing);
   });
 
-  testWidgets('enquanto a resposta não chega, a tela mostra o carregando', (tester) async {
+  testWidgets('enquanto a resposta não chega, a tela mostra o carregando', (
+    tester,
+  ) async {
     final resposta = Completer<http.Response>();
-    final sessao = sessaoDeMentira(guardado: {'token': 'token-de-ana@bovino.com'});
+    final sessao = sessaoDeMentira(
+      guardado: {'token': 'token-de-ana@bovino.com'},
+    );
     await sessao.restaurar();
     await tester.pumpWidget(
-      appDeMentira(sessao, livros: MockClient((pedido) => resposta.future)),
+      appDeMentira(sessao, bovinos: MockClient((pedido) => resposta.future)),
     );
     await tester.tap(find.text('Ver os bovinos'));
     // Sem pumpAndSettle: o círculo gira para sempre, e ele esperaria em vão.
@@ -404,40 +571,168 @@ void main() {
     expect(find.text('Coruja'), findsOneWidget);
   });
 
-  testWidgets('tocar num bovino abre o detalhe, que busca o bovino na API pelo id', (tester) async {
+  testWidgets(
+    'tocar num bovino abre o detalhe, que busca o bovino na API pelo id',
+    (tester) async {
+      await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
+      pedidos = 0;
+
+      await tester.tap(find.text('Brisa'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BovinoScreen), findsOneWidget);
+      expect(find.text('Branca de Neve'), findsOneWidget);
+      expect(find.text('Inativo'), findsOneWidget);
+      expect(pedidos, 1);
+    },
+  );
+
+  testWidgets(
+    'o detalhe de um bovino que não existe mais mostra o erro da API',
+    (tester) async {
+      await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
+
+      Navigator.of(tester.element(find.byType(BovinosScreen)))
+          .pushNamed(AppRoutes.bovino, arguments: 99);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Não consegui carregar o bovino'), findsOneWidget);
+      expect(find.text('Bovino 99 nao esta no seu acervo'), findsOneWidget);
+      expect(find.text('Tentar de novo'), findsOneWidget);
+    },
+  );
+
+  testWidgets('sem o bovino na rota (o F5 no detalhe), a tela mostra a lista', (
+    tester,
+  ) async {
     await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
-    pedidos = 0;
 
-    await tester.tap(find.text('Brisa'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(BovinoScreen), findsOneWidget);
-    expect(find.text('Branca de Neve'), findsOneWidget);
-    expect(find.text('Inativo'), findsOneWidget);
-    expect(pedidos, 1);
-  });
-
-
-  testWidgets('o detalhe de um bovino que não existe mais mostra o erro da API', (tester) async {
-    await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
-
-    Navigator.of(tester.element(find.byType(BovinosScreen))).pushNamed(AppRoutes.bovino, arguments: 99);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Não consegui carregar o bovino'), findsOneWidget);
-    expect(find.text('Bovino 99 nao esta no seu acervo'), findsOneWidget);
-    expect(find.text('Tentar de novo'), findsOneWidget);
-  });
-
-  testWidgets('sem o bovino na rota (o F5 no detalhe), a tela mostra a lista', (tester) async {
-    await abrirOsBovinos(tester, apiDeBovinos(200, doisBovinos));
-
-    Navigator.of(tester.element(find.byType(BovinosScreen))).pushNamed(AppRoutes.bovino);
+    Navigator.of(tester.element(find.byType(BovinosScreen)))
+        .pushNamed(AppRoutes.bovino);
     await tester.pumpAndSettle();
 
     expect(find.byType(BovinosScreen), findsOneWidget);
     expect(find.text('Brisa'), findsOneWidget);
   });
+
+  // O formulário: criar, a validação nas duas pontas, editar e excluir.
+  testWidgets(
+    'o + abre o formulário vazio, e salvar põe o bovino novo na lista',
+    (tester) async {
+      await abrirOsBovinos(tester, acervoDeMentira());
+      await preencherOFormulario(tester, 'Estrela', 'Jersey');
+      expect(find.text('Novo bovino'), findsOneWidget);
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FormularioScreen), findsNothing);
+      expect(find.byType(ListTile), findsNWidgets(3));
+      expect(find.text('Estrela'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'o validator segura o formulário: com campo errado, nada vai para a API',
+    (tester) async {
+      await abrirOsBovinos(tester, acervoDeMentira());
+      await preencherOFormulario(tester, '', '', '');
+      pedidos = 0;
+      await tester.tap(find.text('Salvar'));
+      await tester.pump();
+      expect(find.text('Informe o nome do bovino'), findsOneWidget);
+      expect(find.text('Informe a raça do bovino'), findsOneWidget);
+      expect(find.text('Informe o nome da mãe do bovino'), findsOneWidget);
+      await tester.enterText(find.byType(TextFormField).at(0), 'Estrela');
+      await tester.enterText(find.byType(TextFormField).at(1), 'Jersey');
+      await tester.enterText(
+        find.byType(TextFormField).at(2),
+        'Branca de Neve',
+      );
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Informe o nome do bovino'), findsNothing);
+      expect(find.text('Informe a raça do bovino'), findsNothing);
+      expect(find.text('Informe o nome da mãe do bovino'), findsNothing);
+      expect(find.byType(FormularioScreen), findsNothing);
+    },
+  );
+  testWidgets(
+    'nome repetido: a API recusa (409), e o formulário mostra a frase e fica aberto',
+    (tester) async {
+      await abrirOsBovinos(tester, acervoDeMentira());
+      await preencherOFormulario(tester, 'Brisa', 'Jersey');
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ja existe um bovino chamado Brisa'), findsOneWidget);
+      expect(find.byType(FormularioScreen), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'editar: o formulário vem preenchido, e salvar volta para a lista, já atualizada',
+    (tester) async {
+      await abrirOsBovinos(tester, acervoDeMentira());
+      await tester.tap(find.text('Brisa'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Editar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Editar bovino'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Brisa'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Jersey'), findsOneWidget);
+      expect(
+        find.widgetWithText(TextFormField, 'Branca de Neve'),
+        findsOneWidget,
+      );
+      await tester.enterText(find.byType(TextFormField).at(1), 'Holandesa');
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FormularioScreen), findsNothing);
+      expect(find.byType(BovinoScreen), findsNothing);
+      expect(find.text('Brisa'), findsOneWidget);
+      await tester.tap(find.text('Brisa'));
+      await tester.pumpAndSettle();
+      expect(find.text('Holandesa'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'excluir pergunta antes: Cancelar deixa o bovino; Excluir o tira da lista',
+    (tester) async {
+      await abrirOsBovinos(tester, acervoDeMentira());
+      await tester.tap(find.text('Coruja'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Excluir'));
+      await tester.pumpAndSettle();
+      expect(find.text('Excluir Coruja?'), findsOneWidget);
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(BovinoScreen), findsOneWidget);
+      await excluirRespondendo(tester, 'Excluir');
+      expect(find.byType(BovinoScreen), findsNothing);
+      expect(find.text('Coruja'), findsNothing);
+      expect(find.byType(ListTile), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'a API não deixa excluir o bovino emprestado (409): o detalhe mostra a frase',
+    (tester) async {
+      await abrirOsBovinos(tester, acervoDeMentira());
+      await tester.tap(find.text('Brisa'));
+      await tester.pumpAndSettle();
+      await excluirRespondendo(tester, 'Excluir');
+      expect(find.text('Bovino 2 esta inativo'), findsOneWidget);
+      expect(find.byType(BovinoScreen), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'depois de um F5 no formulário (a primeira tela da pilha), ele mostra a lista',
+    (tester) async {
+      await abrirOsBovinos(tester, acervoDeMentira());
+      Navigator.of(tester.element(find.byType(BovinosScreen)))
+          .pushNamedAndRemoveUntil(AppRoutes.formulario, (rota) => false);
+      await tester.pumpAndSettle();
+      expect(find.byType(FormularioScreen), findsOneWidget);
+      expect(find.text('Novo bovino'), findsNothing);
+      expect(find.text('Brisa'), findsOneWidget);
+    },
+  );
 
   // O service testado sozinho, sem tela nenhuma: é o que as camadas compram.
   test('o service recusa campos vazios sem nem chamar a API', () async {
@@ -445,7 +740,10 @@ void main() {
     pedidos = 0;
 
     await expectLater(sessao.entrar('', ''), throwsA(isA<ErroDeLogin>()));
-    await expectLater(sessao.cadastrar('', '', ''), recusadoCom('Preencha o nome, o e-mail e a senha'));
+    await expectLater(
+      sessao.cadastrar('', '', ''),
+      recusadoCom('Preencha o nome, o e-mail e a senha'),
+    );
     expect(pedidos, 0);
     expect(sessao.logado, isFalse);
   });
@@ -466,15 +764,18 @@ void main() {
     expect(avisos, 2);
   });
 
-  test('cadastrar cria a conta e já entra com ela, pelo mesmo caminho do login', () async {
-    final sessao = sessaoDeMentira();
+  test(
+    'cadastrar cria a conta e já entra com ela, pelo mesmo caminho do login',
+    () async {
+      final sessao = sessaoDeMentira();
 
-    await sessao.cadastrar('Bia', 'bia@biblioteca.com', 'segredo456');
+      await sessao.cadastrar('Bia', 'bia@biblioteca.com', 'segredo456');
 
-    expect(sessao.logado, isTrue);
-    expect(sessao.usuario?.nome, 'Bia');
-    expect(sessao.token, 'token-de-bia@biblioteca.com');
-  });
+      expect(sessao.logado, isTrue);
+      expect(sessao.usuario?.nome, 'Bia');
+      expect(sessao.token, 'token-de-bia@biblioteca.com');
+    },
+  );
 
   test('o service traduz a recusa da API: e-mail repetido (409) e campo inválido (422)', () async {
     final sessao = sessaoDeMentira();
@@ -500,7 +801,9 @@ void main() {
   });
 
   test('restaurar devolve a sessão a quem tem um token guardado', () async {
-    final sessao = sessaoDeMentira(guardado: {'token': 'token-de-ana@bovino.com'});
+    final sessao = sessaoDeMentira(
+      guardado: {'token': 'token-de-ana@bovino.com'},
+    );
     pedidos = 0;
 
     await sessao.restaurar();
@@ -530,7 +833,9 @@ void main() {
   });
 
   test('sair apaga o token guardado no aparelho', () async {
-    final sessao = sessaoDeMentira(guardado: {'token': 'token-de-ana@bovino.com'});
+    final sessao = sessaoDeMentira(
+      guardado: {'token': 'token-de-ana@bovino.com'},
+    );
     await sessao.restaurar();
     expect(sessao.logado, isTrue);
 
@@ -539,47 +844,63 @@ void main() {
     expect(await tokenGuardado(), isNull);
   });
 
-  test('o repositório manda o token no cabeçalho e devolve objetos Bovino', () async {
-    String? cabecalho;
-    final cliente = MockClient((pedido) async {
-      cabecalho = pedido.headers['Authorization'];
-      return http.Response(jsonEncode(doisBovinos), 200);
-    });
+  test(
+    'o repositório manda o token no cabeçalho e devolve objetos Bovino',
+    () async {
+      String? cabecalho;
+      final cliente = MockClient((pedido) async {
+        cabecalho = pedido.headers['Authorization'];
+        return http.Response(jsonEncode(doisBovinos), 200);
+      });
 
-    final bovinos = await BovinoRepository(cliente: cliente).listar('tk-123');
+      final bovinos = await BovinoRepository(cliente: cliente).listar('tk-123');
 
-    expect(cabecalho, 'Bearer tk-123');
-    expect(bovinos, hasLength(2));
-    expect(bovinos.first, isA<Bovino>());
-    expect(bovinos.first.nome, 'Coruja');
-    expect(bovinos.last.status, isFalse);
-  });
+      expect(cabecalho, 'Bearer tk-123');
+      expect(bovinos, hasLength(2));
+      expect(bovinos.first, isA<Bovino>());
+      expect(bovinos.first.nome, 'Coruja');
+      expect(bovinos.last.status, isFalse);
+    },
+  );
 
-  test('o repositório busca um bovino só pelo id, com o token: GET /livros/2', () async {
-    String? caminho;
-    String? cabecalho;
-    final cliente = MockClient((pedido) async {
-      caminho = pedido.url.path;
-      cabecalho = pedido.headers['Authorization'];
-      return http.Response(jsonEncode(doisBovinos.last), 200);
-    });
+  test(
+    'o repositório busca um bovino só pelo id, com o token: GET /bovinos/2',
+    () async {
+      String? caminho;
+      String? cabecalho;
+      final cliente = MockClient((pedido) async {
+        caminho = pedido.url.path;
+        cabecalho = pedido.headers['Authorization'];
+        return http.Response(jsonEncode(doisBovinos.last), 200);
+      });
 
-    final bovino = await BovinoRepository(cliente: cliente).buscar('tk-123', 2);
+      final bovino = await BovinoRepository(cliente: cliente)
+          .buscar('tk-123', 2);
 
-    expect(caminho, '/bovinos/2');
-    expect(cabecalho, 'Bearer tk-123');
-    expect(bovino.nome, 'Brisa');
-  });
+      expect(caminho, '/bovinos/2');
+      expect(cabecalho, 'Bearer tk-123');
+      expect(bovino.nome, 'Brisa');
+    },
+  );
 
-  test('o service dos bovinos traduz a recusa: a frase da API vai para a tela', () async {
-    final sessao = sessaoDeMentira();
-    await sessao.entrar('ana@bovino.com', 'segredo123');
-    final recusa = apiDeBovinos(401, {'detail': 'Token invalido ou vencido'});
-    final servico = BovinoService(BovinoRepository(cliente: recusa), sessao);
+  test(
+    'o service dos bovinos traduz a recusa: a frase da API vai para a tela',
+    () async {
+      final sessao = sessaoDeMentira();
+      await sessao.entrar('ana@bovino.com', 'segredo123');
+      final recusa = apiDeBovinos(401, {'detail': 'Token invalido ou vencido'});
+      final servico = BovinoService(BovinoRepository(cliente: recusa), sessao);
 
-    await expectLater(
-      servico.listar(),
-      throwsA(isA<ErroDeBovinos>().having((e) => '$e', 'texto', 'Token invalido ou vencido')),
-    );
-  });
+      await expectLater(
+        servico.listar(),
+        throwsA(
+          isA<ErroDeBovinos>().having(
+            (e) => '$e',
+            'texto',
+            'Token invalido ou vencido',
+          ),
+        ),
+      );
+    },
+  );
 }

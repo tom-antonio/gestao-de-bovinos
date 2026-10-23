@@ -3,7 +3,7 @@ import '../repositories/bovino_repository.dart';
 import '../repositories/usuario_repository.dart';
 import 'sessao_service.dart';
 
-// A recusa dos livros, com a frase que a tela mostra.
+// A recusa dos bovinos, com a frase que a tela mostra.
 class ErroDeBovinos implements Exception {
   ErroDeBovinos(this.mensagem);
 
@@ -33,7 +33,9 @@ class BovinoService {
       // Uma falha de fora, como a rede: a API nem respondeu (o uvicorn parado).
       // Um erro do próprio código não é Exception: passa direto, e a tela o
       // mostra inteiro.
-      throw ErroDeBovinos('Não consegui falar com a API. O uvicorn está rodando?');
+      throw ErroDeBovinos(
+        'Não consegui falar com a API. O uvicorn está rodando?',
+      );
     }
   }
 
@@ -44,7 +46,71 @@ class BovinoService {
     } on RecusaDaApi catch (e) {
       throw ErroDeBovinos(e.mensagem);
     } on Exception {
-      throw ErroDeBovinos('Não consegui falar com a API. O uvicorn está rodando?');
+      throw ErroDeBovinos(
+        'Não consegui falar com a API. O uvicorn está rodando?',
+      );
+    }
+  }
+
+  // Criar, editar e excluir: o mesmo molde do listar. O token vem da sessão,
+  // e a recusa da API (422, 409, 404) vira a frase que a tela mostra.
+  Future<Bovino> criar(
+    String nome,
+    String raca,
+    String nomeMae,
+    bool status,
+  ) async {
+    try {
+      return await repositorio.criar(
+        sessao.token!,
+        nome,
+        raca,
+        nomeMae,
+        status,
+      );
+    } on RecusaDaApi catch (e) {
+      throw ErroDeBovinos(e.mensagem);
+    } on Exception {
+      throw ErroDeBovinos(
+        'Não consegui falar com a API. O uvicorn está rodando?',
+      );
+    }
+  }
+
+  Future<Bovino> atualizar(
+    int id,
+    String nome,
+    String raca,
+    String nomeMae,
+    bool status,
+  ) async {
+    try {
+      return await repositorio.atualizar(
+        sessao.token!,
+        id,
+        nome,
+        raca,
+        nomeMae,
+        status,
+      );
+    } on RecusaDaApi catch (e) {
+      throw ErroDeBovinos(e.mensagem);
+    } on Exception {
+      throw ErroDeBovinos(
+        'Não consegui falar com a API. O uvicorn está rodando?',
+      );
+    }
+  }
+
+  Future<void> excluir(int id) async {
+    try {
+      await repositorio.excluir(sessao.token!, id);
+    } on RecusaDaApi catch (e) {
+      throw ErroDeBovinos(e.mensagem);
+    } on Exception {
+      throw ErroDeBovinos(
+        'Não consegui falar com a API. O uvicorn está rodando?',
+      );
     }
   }
 }
