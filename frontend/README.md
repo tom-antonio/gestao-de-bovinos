@@ -43,6 +43,10 @@ O cadastro chama `POST /usuarios/` pelas mesmas camadas do login e já entra com
 
 O token fica no aparelho (`shared_preferences`, que no navegador é o `localStorage`), num repositório próprio, o `TokenRepository`. O `main` o restaura antes de abrir o app: se a API ainda o aceita, o F5 não derruba a sessão. O Sair apaga o token.
 
-A tela de livros chama `GET /livros/` pelas camadas do app (tela, `LivroService`, `LivroRepository`), com o token no cabeçalho, e mostra só os livros de quem está logado. Ela tem quatro estados: carregando, erro (com Tentar de novo), lista vazia e a lista.
+A tela de bovinos chama `GET /bovinos/` pelas camadas do app (tela, `BovinoService`, `BovinoRepository`), com o token no cabeçalho, e mostra só os bovinos de quem está logado. Ela tem quatro estados: carregando, erro (com Tentar de novo), lista vazia e a lista.
 
-Tocar num livro abre o detalhe pela rota `/livro`, com o id nos `arguments`: o detalhe busca o livro na API (`GET /livros/{id}`), para mostrar o dado de agora.
+Tocar num bovino abre o detalhe pela rota `/bovino`, com o id nos `arguments`: o detalhe busca o bovino na API (`GET /bovinos/{id}`), para mostrar o dado de agora.
+
+O app cria, edita e exclui bovinos pelas camadas (tela, `BovinoService`, `BovinoRepository`), com o token no cabeçalho: `POST /bovinos/`, `PATCH /bovinos/{id}` e `DELETE /bovinos/{id}`. Um formulário só (`FormularioScreen`) serve para criar e para editar.
+
+A validação acontece nas duas pontas: o `validator` de cada campo antes de enviar, e a API, que recusa com 422 ou 409; a frase da API aparece na tela. Excluir pede confirmação num diálogo. Depois de cada operação, a tela fecha com `true`, e a lista pede os bovinos de novo.
